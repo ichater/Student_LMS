@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Contour Mini-LMS
 
-## Getting Started
+A small Learning Management System for students and administrators, built with Next.js App Router, Supabase, PostgreSQL, and TypeScript.
 
-First, run the development server:
+## Setup
+
+Requirements:
+
+- Node.js 20.9 or newer
+- Docker Desktop for local Supabase
 
 ```bash
+npm install
+cp .env.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+For local Supabase:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run supabase:start
+npm run supabase:reset
+npm run supabase:status
+npm run supabase:stop
+```
 
-## Learn More
+Assign or verify an admin locally:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run admin:set -- -Email user@example.com -Role admin
+npm run admin:set -- -Email user@example.com -Role student
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+This is a trusted database workflow and must remain outside browser code. See [Setup](docs/setup.md) for hosted instructions and verification.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Open http://localhost:3000.
 
-## Deploy on Vercel
+## API Documentation
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+With the Next.js development server running, visit http://localhost:3000/api-docs for the local Swagger UI. The Swagger UI loads the maintained OpenAPI specification at http://localhost:3000/openapi.yaml.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Main Commands
+
+- `npm run dev` - start Next.js
+- `npm run lint` - run ESLint
+- `npm test` - run Vitest unit and Route Handler tests
+- `npm run test:integration` - run API Route Handler tests (mocked; no Supabase connection)
+- `npm run test:e2e` - run Playwright browser tests
+- `npm run build` - create a production build
+- `npm run supabase:start` - start local Supabase
+- `npm run supabase:reset` - reset and apply migrations
+- `npm run verify:rls` - verify selected RLS behaviors against local Supabase; leaves a test row in the database
+
+## Application Pages
+
+- `/dashboard` - authenticated student consultation list, booking form, rescheduling, completion, incompletion, and cancellation
+- `/admin/consultations` - authenticated, read-only system-wide consultation view for administrators
+- `/login` and `/register` - authentication entry points
+
+## Technical Overview
+
+- Next.js Proxy redirects users as a navigation aid; Route Handlers authorize application requests and RLS enforces row-level data access.
+- Next.js Route Handlers are the application HTTP boundary.
+- Services contain business rules and repositories perform database access.
+- Zod validates externally supplied request data.
+- Supabase Auth identifies users and provides JWT claims.
+- PostgreSQL RLS enforces row ownership and admin read access independently of API authorization.
+- Consultation status transitions and scheduling rules currently live in the application service, not in database triggers or RLS.
+- Because authenticated users can call the Supabase Data API directly, current RLS does not prevent bypassing those application-level mutation rules; see [Architecture](docs/architecture.md).
+- The trusted admin role is read from `app_metadata.role`, never editable user metadata.
+- Consultation cancellation is represented by status; records are not deleted.
+
+See [Architecture](docs/architecture.md), [Setup](docs/setup.md), and [OpenAPI](openapi.yaml).
+
+This is a consultation-focused LMS starter, not a complete course, assessment, or content-management platform. See [Architecture](docs/architecture.md) for current boundaries and limitations.
+
+## Browser tests
+
+Run `npm run test:e2e:install` once, then `npm run test:e2e`. The local suite supports `E2E_STUDENT_EMAIL` / `E2E_STUDENT_PASSWORD` and `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASSWORD` after assigning the trusted account claims. See [Setup](docs/setup.md#browser-verification).

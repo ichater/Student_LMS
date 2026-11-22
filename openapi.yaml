@@ -1,0 +1,329 @@
+openapi: 3.1.0
+info:
+  title: Contour Mini-LMS API
+  version: 0.1.0
+  description: Consultation-focused LMS starter API. Authenticated requests use the Supabase SSR session cookie.
+servers:
+  - url: http://localhost:3000
+
+tags:
+  - name: Authentication
+  - name: Consultations
+  - name: Administration
+
+paths:
+  /api/consultations:
+    get:
+      summary: List the authenticated student's consultations
+      tags: [Consultations]
+      responses:
+        '200':
+          description: Consultations fetched successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsultationListResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      summary: Create a consultation
+      tags: [Consultations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [first_name, last_name, reason, scheduled_at]
+              properties:
+                first_name: { type: string, minLength: 1, maxLength: 100 }
+                last_name: { type: string, minLength: 1, maxLength: 100 }
+                reason: { type: string, minLength: 1, maxLength: 1000 }
+                scheduled_at: { type: string, format: date-time, description: Must include a timezone offset and be in the future. }
+      responses:
+        '201':
+          description: Consultation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsultationSuccessResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/auth/register:
+    post:
+      summary: Register a student account
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/auth/login:
+    post:
+      summary: Log in with email and password
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 1, maxLength: 128 }
+      responses:
+        '200':
+          description: Login successful; the Supabase session is stored in response cookies.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/AuthenticationFailed' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/auth/logout:
+    post:
+      summary: End the current session
+      tags: [Authentication]
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResponse'
+        '400': { $ref: '#/components/responses/AuthenticationFailed' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/auth/me:
+    get:
+      summary: Get the authenticated session user
+      tags: [Authentication]
+      responses:
+        '200':
+          description: Current session fetched successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/consultations/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Retrieve one owned consultation
+      tags: [Consultations]
+      responses:
+        '200':
+          description: Consultation fetched successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsultationSuccessResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      summary: Reschedule or change consultation status
+      tags: [Consultations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [scheduled_at]
+                  additionalProperties: false
+                  properties:
+                    scheduled_at: { type: string, format: date-time, description: Must include a timezone offset and be in the future. }
+                - type: object
+                  required: [status]
+                  additionalProperties: false
+                  properties:
+                    status: { type: string, enum: [completed, booked, cancelled] }
+      responses:
+        '200':
+          description: Consultation updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsultationSuccessResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/admin/consultations:
+    get:
+      summary: List all consultations
+      tags: [Administration]
+      responses:
+        '200':
+          description: All consultations fetched successfully; administrators have read-only access.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsultationListResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+components:
+  responses:
+    BadRequest:
+      description: Request body must be valid JSON.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Unauthorized:
+      description: Authentication is required.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Forbidden:
+      description: Administrator access is required.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    NotFound:
+      description: Consultation not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    ValidationError:
+      description: Request data is invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    AuthenticationFailed:
+      description: Authentication operation failed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Conflict:
+      description: Requested state transition is not allowed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    InternalError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+  schemas:
+    ApiSuccess:
+      type: object
+      required: [success, code, message, data]
+      properties:
+        success: { const: true }
+        code: { type: string, enum: [OK, CREATED, UPDATED, LOGGED_IN, LOGGED_OUT, REGISTERED] }
+        message: { type: string }
+        data: {}
+    ApiError:
+      type: object
+      required: [success, code, message, data]
+      properties:
+        success: { const: false }
+        code:
+          type: string
+          enum: [UNAUTHORIZED, FORBIDDEN, NOT_FOUND, VALIDATION_ERROR, AUTHENTICATION_FAILED, RESCHEDULE_NOT_ALLOWED, INVALID_STATUS_TRANSITION, INTERNAL_ERROR]
+        message: { type: string }
+        data: { type: 'null' }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field: { type: string }
+              message: { type: string }
+    ConsultationListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            code: { const: OK }
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/Consultation' }
+    SessionResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            code: { type: string, enum: [OK, LOGGED_IN] }
+            data:
+              type: object
+              required: [userId, role]
+              properties:
+                userId: { type: string, format: uuid }
+                role: { type: string, enum: [student, admin] }
+    RegistrationResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            code: { const: REGISTERED }
+            data:
+              type: object
+              required: [userId]
+              properties:
+                userId: { type: [string, 'null'], format: uuid }
+    LogoutResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            code: { const: LOGGED_OUT }
+            data: { type: 'null' }
+    ConsultationSuccessResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccess'
+        - type: object
+          properties:
+            code: { type: string, enum: [OK, CREATED, UPDATED] }
+            data:
+              $ref: '#/components/schemas/Consultation'
+    Consultation:
+      type: object
+      required: [id, user_id, first_name, last_name, reason, scheduled_at, status, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        first_name: { type: string }
+        last_name: { type: string }
+        reason: { type: string }
+        scheduled_at: { type: string, format: date-time }
+        status: { type: string, enum: [booked, completed, cancelled] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
